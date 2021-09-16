@@ -139,7 +139,7 @@ shap_model.set_explainer("deep")
 shap_model.get_shap_values(model,samples,False)
 
 #Printa valores shap
-print(shap_model.possibilits[5],shap_model.predict(shap_model.possibilits[5].reshape(1,8)),shap_model.shap_values[5])
+#print(shap_model.possibilits[5],shap_model.predict(shap_model.possibilits[5].reshape(1,8)),shap_model.shap_values[5])
 
 predictions = shap_model.predict(samples)
 
