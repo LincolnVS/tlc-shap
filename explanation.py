@@ -5,7 +5,6 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import matplotlib.pyplot as plt
 import numpy as np
 import shap
-import utils
 from tqdm import tqdm
 
 import matplotlib
@@ -26,7 +25,7 @@ def convert_list_string_to_list_float(strings):
         values.append(np.array(value).reshape(8))
     return values
 
-def load_states(path,num_states=5000):
+def load_states(path,num_states=1000):
     buffer = pd.read_csv(f"{path}buffer.csv",sep=";")
     states = convert_list_string_to_list_float(np.random.choice(buffer['actual_state'],num_states))
     return np.array(states)
@@ -38,12 +37,13 @@ class shap_explainer_model:
 
     def __init__ (self, path:str="out/", auto_save:bool=True,force_new:bool=False):
         #Define Vars
-        self._model_to_be_explained = None
+        self.model_explained = None
         self.shap_values = None
         self.expected_value = None
         self._explainer = None
         self._explainer_func = None
         self.explainer_type = None
+        self.possibilits = None
 
         self.path = path
         self.auto_save = auto_save
@@ -66,11 +66,10 @@ class shap_explainer_model:
         if self._explainer_func == None:
             raise Exception("Explainer iqual None... Before get shap values, run set_explainer(type)")
         
-        self._model_to_be_explained = model_to_be_explained
-        
-        #print(self.shap_values)
-        if self.shap_values == None or new_shap_values:
-            self._explainer = self._explainer_func(self._model_to_be_explained,possibilits)
+        if self.shap_values == None or new_shap_values or self.expected_value is None:
+            self.model_explained = model_to_be_explained
+            self.possibilits = possibilits
+            self._explainer = self._explainer_func(self.model_explained,possibilits)
             self.shap_values = self._explainer.shap_values(possibilits)
             self.expected_value = self._explainer.expected_value
 
@@ -78,22 +77,6 @@ class shap_explainer_model:
         self.save_model(self.path) if self.auto_save else None
 
         return self.shap_values
-
-    def get_expected_value(self,model_to_be_explained,possibilits,new_expected_value:bool=False):
-        if self._explainer_func == None:
-            raise Exception("Explainer iqual None... Before get shap values, run set_explainer(type)")
-        
-        self._model_to_be_explained = model_to_be_explained
-        
-        #print(self.expected_value)
-        if self.expected_value is None or new_expected_value:
-            self._explainer = self._explainer_func(self._model_to_be_explained,possibilits)
-            self.expected_value = self._explainer.expected_value
-
-        self._explainer = None
-        self.save_model(self.path) if self.auto_save else None
-
-        return self.expected_value
 
     def _get_real_explainer_type(self,type):
         type_lower = type.lower()
@@ -122,16 +105,20 @@ class shap_explainer_model:
         return pickle.load(open(f"{path}shap_model.pickle", "rb"))
     
     def update(self,new_class):
-        self._model_to_be_explained = new_class._model_to_be_explained
+        self.model_explained = new_class.model_explained
         self.shap_values = new_class.shap_values
         self.expected_value = new_class.expected_value
         self._explainer = new_class._explainer
         self._explainer_func = new_class._explainer_func
         self.explainer_type = new_class.explainer_type
+        self.possibilits = new_class.possibilits
 
         self.path = new_class.path 
         self.auto_save = new_class.auto_save
         self.force_new = new_class.force_new
+
+    def predict(self,*args):
+        return self.model_explained.predict(*args)
 
 
 #Gera os estados
@@ -139,7 +126,7 @@ path = "tst/"
 samples = load_states(path)
 
 #Carrega modelo do agente
-model_to_be_explained = load_model_to_be_explained(path)
+model = load_model_to_be_explained(path)
 
 #Cria agente shap (ou faz load do modelo ja criado)
 shap_model = shap_explainer_model(path)
@@ -149,15 +136,12 @@ shap_model.set_explainer("deep")
 #print(shap_model.explainer_type)
 
 #Gera valores shap (ou pega os que ja estão carregados)
-shap_model.get_shap_values(model_to_be_explained,samples,True)
-
-#Gera expected_value
-#shap_model.get_expected_value(model_to_be_explained,samples,False)
+shap_model.get_shap_values(model,samples,False)
 
 #Printa valores shap
-#print(samples[5],model_to_be_explained.predict(samples[5].reshape(1,8)),shap_model.shap_values[5])
+print(shap_model.possibilits[5],shap_model.predict(shap_model.possibilits[5].reshape(1,8)),shap_model.shap_values[5])
 
-predictions = model_to_be_explained.predict(samples)
+predictions = shap_model.predict(samples)
 
 #### Começa plots
 import matplotlib.pyplot as plt
@@ -171,11 +155,11 @@ def hex_to_rgb(hex_color):
     rgb.append(1)
     return rgb
 def create_tab_b(total=8,num = 1):
-    cores_hex = ['#2cbdfe','#3aacf6','#489bee','#568ae6','#6379de', '#6e6cd8',
-                '#7168d7', '#7f57cf','#8d46c7','#9739c1','#9b35bf','#a924b7', '#b317b1']
+    #cores_hex = ['#2cbdfe','#3aacf6','#489bee','#568ae6','#6379de', '#6e6cd8',
+    #            '#7168d7', '#7f57cf','#8d46c7','#9739c1','#9b35bf','#a924b7', '#b317b1']
     
-    #cores_hex = ['#000080','#008000','#A0522D','#4B0082','#FF00FF', '#DC143C',
-    #            '#FA8072', '#FFD700']   
+    #cores_hex = ['#322e2f','#12a4d9','#12a4d9','#b20238','#d9138a','#e2d810','#fbcbc9','#6b7b8c']
+    cores_hex = ['#322e2f','#375f9f','#12a4d9','#3caea3','#b9d604','#f6d55c','#ed553b','#b20238']
     colors = []
     sub_total = 0
     jump_total = 0
@@ -239,7 +223,7 @@ cm = LinearSegmentedColormap.from_list(
 
 for row_index in range(1):
 
-    state = samples[row_index]
+    state = [np.ceil(s/.025) for s in shap_model.possibilits[row_index]]
 
     shap.multioutput_decision_plot(
         base_values = list(shap_model.expected_value), 
@@ -290,5 +274,5 @@ for row_index in range(1):
     rect = [0.93,0.05,.05,0.7]
     ax1 = add_subplot_axes(ax,rect)
 
-    plt.savefig(f"{path}multoutput.pdf",bbox_inches = 'tight',pad_inches = 0)
+    plt.savefig(f"{path}multoutput_{row_index}.pdf",bbox_inches = 'tight',pad_inches = 0)
     plt.show()
